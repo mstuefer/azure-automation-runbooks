@@ -20,3 +20,7 @@ Microsoft Azure Cloud Platform.
 - Copy-SomeTablesToDifferentDatabase
 
    Copies (bulk) the content of some tables into a different Database
+
+- Update-AllStatisticsOnSeveralTablesWithFullscan
+
+   Updates all the Statistics for each given table by the use of Fullscan
