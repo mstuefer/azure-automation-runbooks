@@ -28,7 +28,7 @@ Rebuild-FragmentedIndexes -Server 's' -DatabaseName 'd' -UserName 'u' -Password 
 
 .NOTES
 Author: Manuel Stuefer
-Last Updated: 2nd of December 2014
+Last Updated: 20 January 2015
 #>
 
 workflow Rebuild-FragmentedIndexes {
@@ -40,6 +40,8 @@ workflow Rebuild-FragmentedIndexes {
         [parameter(Mandatory=$true)]  [int]$AcceptedAverageFragmentation=10,
         [parameter(Mandatory=$true)]  [int]$MaxQueryTime=1500
     )
+
+    # $ErrorActionPreference = "Stop" # Uncomment if runbook should stop on first error
 
     $FragmentedIndexes = InlineScript {
         $Query = "SELECT TABLE_SCHEMA AS SchemaName, OBJECT_NAME(F.OBJECT_ID) as TableName, I.NAME AS IndexName, F.AVG_FRAGMENTATION_IN_PERCENT AS AverageFragmentationInPercent FROM SYS.DM_DB_INDEX_PHYSICAL_STATS(DB_ID(),NULL,NULL,NULL,NULL) F JOIN SYS.INDEXES I ON(F.OBJECT_ID=I.OBJECT_ID) AND I.INDEX_ID=F.INDEX_ID JOIN INFORMATION_SCHEMA.TABLES S ON (S.TABLE_NAME=OBJECT_NAME(F.OBJECT_ID)) WHERE F.DATABASE_ID = DB_ID() AND F.AVG_FRAGMENTATION_IN_PERCENT > $using:AcceptedAverageFragmentation AND OBJECTPROPERTY(I.OBJECT_ID, 'ISSYSTEMTABLE') = 0 ORDER BY SchemaName, TableName, IndexName;"
@@ -54,17 +56,32 @@ workflow Rebuild-FragmentedIndexes {
         $Connection.Close()
     }
 
-    Write-Output $FragmentedIndexes.Count
+    $Message = "Found "+($FragmentedIndexes.Count)+" indexes with avg_fragmentation_in_percent > $AcceptedAverageFragmentation"
+    Write-Output $Message
     foreach($FragmentedIndex in $FragmentedIndexes) {
         InlineScript {
             $Row = $using:FragmentedIndex
-            $Query = "ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD WITH (ONLINE=ON (WAIT_AT_LOW_PRIORITY (MAX_DURATION=$using:MaxQueryTime SECONDS, ABORT_AFTER_WAIT=SELF)))"
-            Write-Output $Query
+            $Query = ""
+            $Query += "BEGIN "
+            $Query += "Begin Try "
+            $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD WITH (ONLINE=ON)') "
+            $Query += "End Try "
+            $Query += "Begin Catch "
+            $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD') "
+            $Query += "End Catch "
+            $Query += "END "
+            Write-Verbose $Query
             $Connection = New-Object System.Data.SqlClient.SqlConnection("Server=tcp:$using:Server;Database=$using:DatabaseName;User ID=$using:UserName;Password=$using:Password;Trusted_Connection=False;Encrypt=True;")
             $Connection.Open()
             $Command = New-Object System.Data.SqlClient.SqlCommand($Query, $Connection)
             $Command.CommandTimeout = $using:MaxQueryTime
-            [void]$Command.ExecuteNonQuery()
+            Try {
+                [void]$Command.ExecuteNonQuery()
+                Write-Output "Index $Row.IndexName rebuild"
+            } Catch {
+                Write-Verbose $_.Exception.Message
+                Write-Error "Index $Row.IndexName NOT rebuilded"
+            }
             $Connection.Close()
         }
         Checkpoint-Workflow
