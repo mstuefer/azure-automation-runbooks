@@ -58,7 +58,7 @@ workflow Rebuild-FragmentedIndexes {
     foreach($FragmentedIndex in $FragmentedIndexes) {
         InlineScript {
             $Row = $using:FragmentedIndex
-            $Query = "ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD WITH (ONLINE=ON)"
+            $Query = "ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD WITH (ONLINE=ON (WAIT_AT_LOW_PRIORITY (MAX_DURATION=$using:MaxQueryTime SECONDS, ABORT_AFTER_WAIT=SELF)))"
             Write-Output $Query
             $Connection = New-Object System.Data.SqlClient.SqlConnection("Server=tcp:$using:Server;Database=$using:DatabaseName;User ID=$using:UserName;Password=$using:Password;Trusted_Connection=False;Encrypt=True;")
             $Connection.Open()
