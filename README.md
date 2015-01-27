@@ -10,7 +10,7 @@ Microsoft Azure Cloud Platform.
 
 - Rebuild-FragmentedIndexes
 
-   Helps to rebuild (online) all indexes on Azure SQL on which a given
+   Helps to rebuild (eventually online) all indexes on Azure SQL on which a given
    Fragmentation is reached
 
 - Scale-DatabaseService

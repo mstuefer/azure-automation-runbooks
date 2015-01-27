@@ -56,8 +56,7 @@ workflow Rebuild-FragmentedIndexes {
         $Connection.Close()
     }
 
-    $Message = "Found "+($FragmentedIndexes.Count)+" indexes with avg_fragmentation_in_percent > $AcceptedAverageFragmentation"
-    Write-Output $Message
+    "Found "+($FragmentedIndexes.Count)+" indexes with avg_fragmentation_in_percent > $AcceptedAverageFragmentation" | Write-Output
     foreach($FragmentedIndex in $FragmentedIndexes) {
         InlineScript {
             $Row = $using:FragmentedIndex
@@ -77,10 +76,10 @@ workflow Rebuild-FragmentedIndexes {
             $Command.CommandTimeout = $using:MaxQueryTime
             Try {
                 [void]$Command.ExecuteNonQuery()
-                Write-Output "Index $Row.IndexName rebuild"
+                "Index "+$Row.IndexName+" rebuild" | Write-Output
             } Catch {
                 Write-Verbose $_.Exception.Message
-                Write-Error "Index $Row.IndexName NOT rebuilded"
+                "Index "+$Row.IndexName+" NOT rebuilded" | Write-Error
             }
             $Connection.Close()
         }
