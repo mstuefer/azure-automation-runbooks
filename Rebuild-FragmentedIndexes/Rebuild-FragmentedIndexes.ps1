@@ -44,7 +44,7 @@ workflow Rebuild-FragmentedIndexes {
     # $ErrorActionPreference = "Stop" # Uncomment if runbook should stop on first error
 
     $FragmentedIndexes = InlineScript {
-        $Query = "SELECT TABLE_SCHEMA AS SchemaName, OBJECT_NAME(F.OBJECT_ID) as TableName, I.NAME AS IndexName, F.AVG_FRAGMENTATION_IN_PERCENT AS AverageFragmentationInPercent FROM SYS.DM_DB_INDEX_PHYSICAL_STATS(DB_ID(),NULL,NULL,NULL,NULL) F JOIN SYS.INDEXES I ON(F.OBJECT_ID=I.OBJECT_ID) AND I.INDEX_ID=F.INDEX_ID JOIN INFORMATION_SCHEMA.TABLES S ON (S.TABLE_NAME=OBJECT_NAME(F.OBJECT_ID)) WHERE F.DATABASE_ID = DB_ID() AND F.AVG_FRAGMENTATION_IN_PERCENT > $using:AcceptedAverageFragmentation AND OBJECTPROPERTY(I.OBJECT_ID, 'ISSYSTEMTABLE') = 0 ORDER BY SchemaName, TableName, IndexName;"
+        $Query = "SELECT TABLE_SCHEMA AS SchemaName, OBJECT_NAME(F.OBJECT_ID) as TableName, I.NAME AS IndexName, F.AVG_FRAGMENTATION_IN_PERCENT AS AverageFragmentationInPercent FROM SYS.DM_DB_INDEX_PHYSICAL_STATS(DB_ID(),NULL,NULL,NULL,NULL) F JOIN SYS.INDEXES I ON(F.OBJECT_ID=I.OBJECT_ID) AND I.INDEX_ID=F.INDEX_ID JOIN INFORMATION_SCHEMA.TABLES S ON (S.TABLE_NAME=OBJECT_NAME(F.OBJECT_ID)) WHERE F.DATABASE_ID = DB_ID() AND F.AVG_FRAGMENTATION_IN_PERCENT > $using:AcceptedAverageFragmentation AND OBJECTPROPERTY(I.OBJECT_ID, 'ISSYSTEMTABLE') = 0 ORDER BY F.AVG_FRAGMENTATION_IN_PERCENT desc;"
         $Connection = New-Object System.Data.SqlClient.SqlConnection("Server=tcp:$using:Server;Database=$using:DatabaseName;User ID=$using:UserName;Password=$using:Password;Trusted_Connection=False;Encrypt=True;")
         $Connection.Open()
         $Command = New-Object System.Data.SqlClient.SqlCommand($Query, $Connection)
