@@ -3,7 +3,7 @@
 Rebuilds fragmented indexes
 
 .DESCRIPTION
-This Runbook helps to rebuild (online) all indexes on Azure SQL on which a given Fragmentation is reached
+This Runbook helps to rebuild all indexes on an Azure SQL DB on which a given Fragmentation is reached.
 
 .PARAMETER Server
 Server Name
@@ -20,15 +20,21 @@ Password of the given user
 .PARAMETER AcceptedAverageFragmentation
 We will only rebuild all indexes with a fragmentation higher than this value
 
+.PARAMETER online
+Rebuild indexes online (can cause increased fragmentation)
+
+.PARAMETER maxdop
+Maximum Degree of Parallelism
+
 .PARAMETER MaxQueryTime
 The maximal time (in seconds) we accept per each query
 
 .EXAMPLE
-Rebuild-FragmentedIndexes -Server 's' -DatabaseName 'd' -UserName 'u' -Password 'pwd' -AcceptedAverageFragmentation 10 -MaxQueryTime 1500
+Rebuild-FragmentedIndexes -Server 's' -DatabaseName 'd' -UserName 'u' -Password 'pwd' -AcceptedAverageFragmentation 10 -online false -MaxQueryTime 1500
 
 .NOTES
 Author: Manuel Stuefer
-Last Updated: 20 January 2015
+Last Updated: 14 April 2015
 #>
 
 workflow Rebuild-FragmentedIndexes {
@@ -38,6 +44,8 @@ workflow Rebuild-FragmentedIndexes {
         [parameter(Mandatory=$true)]  [String]$UserName="username",
         [parameter(Mandatory=$true)]  [String]$Password,
         [parameter(Mandatory=$true)]  [int]$AcceptedAverageFragmentation=10,
+        [parameter(Mandatory=$true)]  [bool]$online="false",
+        [parameter(Mandatory=$true)]  [int]$maxdop=1,
         [parameter(Mandatory=$true)]  [int]$MaxQueryTime=1500
     )
 
@@ -62,12 +70,19 @@ workflow Rebuild-FragmentedIndexes {
             $Row = $using:FragmentedIndex
             $Query = ""
             $Query += "BEGIN "
-            $Query += "Begin Try "
-            $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD WITH (ONLINE=ON)') "
-            $Query += "End Try "
-            $Query += "Begin Catch "
-            $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD') "
-            $Query += "End Catch "
+            if($using:online)
+              {
+                $Query += "Begin Try "
+                $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD WITH (ONLINE=ON, maxdop="+$using:maxdop+")') "
+                $Query += "End Try "
+                $Query += "Begin Catch "
+                $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD') "
+                $Query += "End Catch "
+              }
+            else
+              {
+                $Query += "EXEC('ALTER INDEX "+$Row.IndexName+" ON "+$Row.SchemaName+"."+$Row.TableName+" REBUILD') "
+              }
             $Query += "END "
             Write-Verbose $Query
             $Connection = New-Object System.Data.SqlClient.SqlConnection("Server=tcp:$using:Server;Database=$using:DatabaseName;User ID=$using:UserName;Password=$using:Password;Trusted_Connection=False;Encrypt=True;")
@@ -76,7 +91,7 @@ workflow Rebuild-FragmentedIndexes {
             $Command.CommandTimeout = $using:MaxQueryTime
             Try {
                 [void]$Command.ExecuteNonQuery()
-                "Index "+$Row.IndexName+" rebuild" | Write-Output
+                "Index "+$Row.IndexName+" rebuilt" | Write-Output
             } Catch {
                 Write-Verbose $_.Exception.Message
                 "Index "+$Row.IndexName+" NOT rebuilded" | Write-Error
